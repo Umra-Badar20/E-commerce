@@ -1,7 +1,11 @@
 import ImageKit from '@imagekit/nodejs';
 
+if (!process.env.IMAGEKIT_PRIVATE_KEY) {
+  throw new Error("IMAGEKIT_PRIVATE_KEY environment variable is required");
+}
+
 const client = new ImageKit({
-  privateKey: "private_YRZ1RqbIcv84oKa2lHuEOtfhxwA="
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY
 });
 
 async function uploadFile(buffer){

@@ -2,6 +2,12 @@ import userModel from "../models/users.model.js";
 import jwt from "jsonwebtoken"
 import bcrypt from "bcryptjs"
 
+const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+}
+
 async function registerUser(req, res) {
    try {
     const { username,email, password,role } = req.body;
@@ -25,9 +31,9 @@ async function registerUser(req, res) {
     const token= jwt.sign({
         id: user._id,
         role: user.role
-    },"0ed127bf813f2f9224813e45631b1571")
+    }, process.env.JWT_SECRET)
 
-    res.cookie("token",token)
+    res.cookie("token",token,cookieOptions)
 
     res.status(201).json({
         message:"User created sucessfully",
@@ -64,9 +70,9 @@ async function loginUser(req, res) {
     const token= jwt.sign({
         id: user._id,
         role: user.role
-    },"0ed127bf813f2f9224813e45631b1571")
+    }, process.env.JWT_SECRET)
 
-    res.cookie("token",token)
+    res.cookie("token",token,cookieOptions)
 
     res.status(200).json({
         message:"User logged in sucessfully",
@@ -74,4 +80,10 @@ async function loginUser(req, res) {
     })
 
 }
-export { registerUser , loginUser}
+
+function logoutUser(req, res) {
+    res.clearCookie("token", cookieOptions)
+    res.status(200).json({ message: "User logged out successfully" })
+}
+
+export { registerUser, loginUser, logoutUser }

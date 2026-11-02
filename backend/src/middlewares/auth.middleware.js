@@ -8,7 +8,7 @@ export function authenticateToken(req,res,next){
     }
 
     try{
-        req.user = jwt.verify(token,"0ed127bf813f2f9224813e45631b1571")      
+        req.user = jwt.verify(token, process.env.JWT_SECRET)
         next()
     }catch(err){
         res.status(401).json({

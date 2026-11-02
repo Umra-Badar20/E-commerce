@@ -1,15 +1,34 @@
-import dns from 'node:dns/promises'
-dns.setServers(['1.1.1.1','8.8.8.8'])
-
+import dns from "node:dns"
 import mongoose from "mongoose"
-main().catch(err => console.log(err));
 
-async function main() {
-  try{
-    await mongoose.connect('mongodb+srv://umrabadar55_db_user:K3Essl9YJbq4QjZh@cluster0.wgpc8ok.mongodb.net/user');
-  console.log("Connected to DB");
-  }catch(err){
-    console.log("Error connecting to DB", err);
-  }
+if (process.env.NODE_ENV !== "production") {
+  dns.setServers(["1.1.1.1", "8.8.8.8"])
 }
-export default main
+
+let connectionPromise
+
+async function connectDB() {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection
+  }
+
+  if (!connectionPromise) {
+    const uri = process.env.MONGODB_URI
+    if (!uri) {
+      throw new Error("MONGODB_URI environment variable is required")
+    }
+
+    connectionPromise = mongoose.connect(uri)
+      .then((connection) => {
+        console.log("Connected to DB")
+        return connection
+      })
+      .finally(() => {
+        connectionPromise = undefined
+      })
+  }
+
+  return connectionPromise
+}
+
+export default connectDB

@@ -140,8 +140,12 @@ const App = () => {
     }
   }
 
-  const handleSignOut = () => {
-    document.cookie = 'token=; Max-Age=0; path=/'
+  const handleSignOut = async () => {
+    try {
+      await apiRequest('/api/auth/logout', { method: 'POST' })
+    } catch (requestError) {
+      setError(requestError.message)
+    }
     localStorage.removeItem('atelier-user')
     setUser(null)
     setCart([])
