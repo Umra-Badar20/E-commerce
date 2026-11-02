@@ -3,9 +3,6 @@ import connectDB from "./src/db/db.js"
 const port = 3000
 connectDB()
 
-if (process.env.NODE_ENV !== 'production') {
-    const port = 3000
-    app.listen(port, () => {
-        console.log(`Example app listening on port ${port}`)
-    })
-}
+app.listen(port, () => {
+    console.log(`Example app listening on port ${port}`)
+})

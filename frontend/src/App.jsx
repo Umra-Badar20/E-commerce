@@ -1,430 +1,222 @@
-import React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "./api.js";
+import { useEffect, useMemo, useState } from 'react'
+import { apiRequest } from './api.js'
+import { CartDrawer } from './components/CartDrawer.jsx'
+import { ProductGrid } from './components/ProductGrid.jsx'
+import { StoreDialogs } from './components/StoreDialogs.jsx'
+import { StoreHeader } from './components/StoreHeader.jsx'
 
-const savedUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem("shop-user") || "null");
-  } catch {
-    return null;
-  }
-};
-
-const formatPrice = (amount) => {
-  const numericAmount = Number(amount);
-  return amount !== null && amount !== undefined && amount !== "" && Number.isFinite(numericAmount)
-    ? `PKR ${new Intl.NumberFormat("en-PK", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(numericAmount)}`
-    : "Price unavailable";
-};
-
-function App() {
-  const [user, setUser] = useState(savedUser);
-  const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState([]);
-  const [cartTotal, setCartTotal] = useState(0);
-  const [view, setView] = useState("shop");
-  const [authMode, setAuthMode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-  const [productFormOpen, setProductFormOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-
-  const loadProducts = useCallback(async () => {
+const App = () => {
+  const [products, setProducts] = useState([])
+  const [cart, setCart] = useState([])
+  const [user, setUser] = useState(() => {
     try {
-      const result = await api("/api/product/");
-      setProducts(result.products || []);
-      setError("");
-    } catch (requestError) {
-      setError(requestError.message);
+      return JSON.parse(localStorage.getItem('atelier-user'))
+    } catch {
+      return null
     }
-  }, []);
+  })
+  const [search, setSearch] = useState('')
+  const [dialog, setDialog] = useState(null)
+  const [editingProduct, setEditingProduct] = useState(null)
+  const [cartOpen, setCartOpen] = useState(false)
+  const [loadingProducts, setLoadingProducts] = useState(true)
+  const [deletingProductId, setDeletingProductId] = useState(null)
+  const [error, setError] = useState('')
 
-  const loadCart = useCallback(async () => {
-    if (!user) {
-      setCart([]);
-      setCartTotal(0);
-      return;
-    }
+  const loadProducts = async (showLoading = true) => {
+    if (showLoading) setLoadingProducts(true)
     try {
-      const result = await api("/api/cart/");
-      setCart(result.cart || []);
-      setCartTotal(result.total);
+      const data = await apiRequest('/api/product')
+      setProducts(data.products || [])
+      setError('')
     } catch (requestError) {
-      setCart([]);
-      setCartTotal(0);
-      if (requestError.message !== "Unauthorized") setError(requestError.message);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
-
-  useEffect(() => {
-    loadCart();
-  }, [loadCart]);
-
-  const cartCount = useMemo(
-    () => cart.reduce((total, item) => total + (Number(item.quantity) || 0), 0),
-    [cart]
-  );
-
-  async function submitAuth(event) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    const form = new FormData(event.currentTarget);
-    const isRegister = authMode === "register";
-    const identifier = form.get("identifier");
-    const payload = isRegister
-      ? {
-          username: form.get("username"),
-          email: form.get("email"),
-          password: form.get("password"),
-        }
-      : {
-          username: identifier,
-          email: identifier,
-          password: form.get("password"),
-        };
-
-    try {
-      const result = await api(`/api/auth/${isRegister ? "register" : "login"}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const safeUser = {
-        _id: result.user._id,
-        username: result.user.username,
-        email: result.user.email,
-        role: result.user.role,
-      };
-      localStorage.setItem("shop-user", JSON.stringify(safeUser));
-      setUser(safeUser);
-      setAuthMode("");
-      setNotice(isRegister ? "Your account is ready. Welcome in!" : "Welcome back.");
-      setTimeout(() => setNotice(""), 3500);
-    } catch (requestError) {
-      setError(requestError.message);
+      setError(requestError.message)
     } finally {
-      setBusy(false);
+      setLoadingProducts(false)
     }
   }
 
-  async function addToCart(productId) {
-    if (!user) {
-      setAuthMode("login");
-      setError("Sign in to add items to your bag.");
-      return;
+  useEffect(() => {
+    let active = true
+    apiRequest('/api/product')
+      .then((data) => {
+        if (active) setProducts(data.products || [])
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message)
+      })
+      .finally(() => {
+        if (active) setLoadingProducts(false)
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
+
+    apiRequest('/api/cart')
+      .then((data) => setCart(data.cart || []))
+      .catch(() => {
+        setUser(null)
+        localStorage.removeItem('atelier-user')
+      })
+  }, [user])
+
+  const visibleProducts = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return products
+    return products.filter((product) =>
+      `${product.name} ${product.desc}`.toLowerCase().includes(query),
+    )
+  }, [products, search])
+
+  const cartCount = cart.reduce((total, item) => total + item.quantity, 0)
+
+  const handleAuth = async (mode, formData) => {
+    const data = await apiRequest(`/api/auth/${mode}`, {
+      method: 'POST',
+      body: JSON.stringify(formData),
+    })
+    const nextUser = {
+      id: data.user._id,
+      username: data.user.username,
+      email: data.user.email,
+      role: data.user.role,
     }
-    setBusy(true);
-    setError("");
+    localStorage.setItem('atelier-user', JSON.stringify(nextUser))
+    setUser(nextUser)
+    setDialog(null)
+  }
+
+  const handleAddToCart = async (productId) => {
+    if (!user) {
+      setDialog('auth')
+      return
+    }
+
     try {
-      const result = await api("/api/cart/items", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const data = await apiRequest('/api/cart/items', {
+        method: 'POST',
         body: JSON.stringify({ productId, quantity: 1 }),
-      });
-      setCart(result.cart || []);
-      setCartTotal(result.total);
-      setNotice("Added to your bag.");
-      setTimeout(() => setNotice(""), 2500);
+      })
+      setCart(data.cart || [])
+      setError('')
     } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setBusy(false);
+      setError(requestError.message)
     }
   }
 
-  async function createProduct(event) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const isEditing = Boolean(editingProduct);
+  const handleRemoveFromCart = async (productId) => {
+    const data = await apiRequest(`/api/cart/items/${encodeURIComponent(productId)}`, {
+      method: 'DELETE',
+    })
+    setCart(data.cart || [])
+  }
+
+  const handleSaveProduct = async (formData, productId) => {
+    const data = await apiRequest(productId ? `/api/product/${encodeURIComponent(productId)}` : '/api/product/create', {
+      method: productId ? 'PATCH' : 'POST',
+      body: formData,
+    })
+    setProducts((current) => productId
+      ? current.map((product) => product._id === productId ? data.product : product)
+      : [data.product, ...current])
+    setDialog(null)
+  }
+
+  const handleDeleteProduct = async (product) => {
+    if (!window.confirm(`Delete “${product.name}” from the collection?`)) return
+
+    setDeletingProductId(product._id)
     try {
-      await api(
-        isEditing ? `/api/product/${editingProduct._id}` : "/api/product/create",
-        { method: isEditing ? "PUT" : "POST", body: form }
-      );
-      formElement.reset();
-      setProductFormOpen(false);
-      setEditingProduct(null);
-      setNotice(isEditing ? "Your product has been updated." : "Your new piece is live.");
-      setTimeout(() => setNotice(""), 3000);
-      await loadProducts();
-      if (isEditing) await loadCart();
+      await apiRequest(`/api/product/${encodeURIComponent(product._id)}`, { method: 'DELETE' })
+      setProducts((current) => current.filter((item) => item._id !== product._id))
+      setCart((current) => current.filter((item) => item.product?._id !== product._id))
+      setError('')
     } catch (requestError) {
-      setError(requestError.message);
+      setError(requestError.message)
     } finally {
-      setBusy(false);
+      setDeletingProductId(null)
     }
   }
 
-  async function deleteProduct(product) {
-    if (!window.confirm(`Delete "${product.name}"? It will also be removed from customer carts.`)) {
-      return;
-    }
-
-    setBusy(true);
-    setError("");
-    try {
-      await api(`/api/product/${product._id}`, { method: "DELETE" });
-      setProducts((current) => current.filter((item) => item._id !== product._id));
-      await loadCart();
-      setNotice("Product deleted.");
-      setTimeout(() => setNotice(""), 3000);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function removeFromCart(productId) {
-    setBusy(true);
-    setError("");
-    try {
-      const result = await api(`/api/cart/items/${productId}`, { method: "DELETE" });
-      setCart(result.cart || []);
-      setCartTotal(result.total);
-      setNotice("Item removed from your bag.");
-      setTimeout(() => setNotice(""), 2500);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function signOut() {
-    localStorage.removeItem("shop-user");
-    setUser(null);
-    setCart([]);
-    setView("shop");
-    setNotice("You’ve been signed out.");
-    setTimeout(() => setNotice(""), 2500);
+  const handleSignOut = () => {
+    document.cookie = 'token=; Max-Age=0; path=/'
+    localStorage.removeItem('atelier-user')
+    setUser(null)
+    setCart([])
   }
 
   return (
-    <div className="app-shell">
-      <div className="announcement">
-        <span>Thoughtful goods, made for everyday living</span>
-        <span className="announcement-note">A little more considered. A lot more you.</span>
-      </div>
-
-      <header className="site-header">
-        <a className="wordmark" href="#home" onClick={() => setView("shop")}>
-          FORM<span>&</span>FIELD
-          <small>OBJECTS FOR LIVING</small>
-        </a>
-        <nav className="main-nav" aria-label="Main navigation">
-          <button className={view === "shop" ? "nav-link active" : "nav-link"} onClick={() => setView("shop")}>Shop all</button>
-          <a className="nav-link" href="#story">Our approach</a>
-        </nav>
-        <div className="header-actions">
-          {user ? (
-            <>
-              <span className="welcome-user">Hello, {user.username}</span>
-              {user.role === "admin" && (
-                <button className="text-button admin-shortcut" onClick={() => { setEditingProduct(null); setError(""); setProductFormOpen(true); }}>Add product</button>
-              )}
-              <button className="text-button" onClick={signOut}>Sign out</button>
-            </>
-          ) : (
-            <button className="text-button" onClick={() => { setError(""); setAuthMode("login"); }}>Sign in</button>
-          )}
-          <button className={`bag-button ${view === "bag" ? "selected" : ""}`} onClick={() => { setView("bag"); setError(""); }}>
-            Bag <span>{cartCount}</span>
-          </button>
-        </div>
-      </header>
-
-      <main id="home">
-        {view === "shop" ? (
-          <>
-            <section className="hero">
-              <div className="hero-copy">
-                <p className="eyebrow">THE EVERYDAY EDIT — NO. 01</p>
-                <h1>Good things.<br /><em>Well considered.</em></h1>
-                <p className="hero-description">A thoughtful collection of pieces for your home, your rituals, and everything in between.</p>
-                <button className="button button-dark" onClick={() => document.getElementById("collection")?.scrollIntoView({ behavior: "smooth" })}>
-                  Explore the collection <span aria-hidden="true">↘</span>
-                </button>
-              </div>
-              <div className="hero-art" role="img" aria-label="Warm, sunlit still life of everyday objects">
-                <div className="art-sun" />
-                <div className="art-vase"><span /></div>
-                <div className="art-book art-book-one" />
-                <div className="art-book art-book-two" />
-                <div className="art-caption">A slower kind of everyday <span>01 / 04</span></div>
-              </div>
-              <span className="hero-side-note">MADE TO BE LIVED WITH</span>
-            </section>
-
-            <section className="collection section-wrap" id="collection">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">CURATED FOR YOUR SPACE</p>
-                  <h2>The collection<span className="period">.</span></h2>
-                </div>
-                <span className="product-total">{products.length.toString().padStart(2, "0")} OBJECTS</span>
-              </div>
-              {error && <div className="inline-alert" role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
-              {products.length ? (
-                <div className="product-grid">
-                  {products.map((product, index) => (
-                    <article className="product-card" key={product._id}>
-                      <div className="product-image-wrap">
-                        {product.image ? <img src={product.image} alt={product.name} loading="lazy" /> : <div className="image-placeholder">F&F</div>}
-                        <span className="product-index">0{index + 1}</span>
-                        <button className="quick-add" onClick={() => addToCart(product._id)} disabled={busy || !Number.isFinite(Number(product.price)) || product.price === null || product.price === ""}>
-                          <span aria-hidden="true">+</span> Add to bag
-                        </button>
-                      </div>
-                      <div className="product-meta">
-                        <div><h3>{product.name}</h3><p>{product.desc}</p><span className="product-price">{formatPrice(product.price)}</span></div>
-                        <span className="product-arrow" aria-hidden="true">↗</span>
-                      </div>
-                      {user?.role === "admin" && (
-                        <div className="admin-product-actions">
-                          <button
-                            type="button"
-                            onClick={() => { setError(""); setEditingProduct(product); setProductFormOpen(false); }}
-                            disabled={busy}
-                          >
-                            Edit product
-                          </button>
-                          <button type="button" onClick={() => deleteProduct(product)} disabled={busy}>
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-collection">
-                  <span className="empty-mark">F&F</span>
-                  <p>{error ? "We couldn’t load the collection." : "The collection is taking shape."}</p>
-                  <span>Check back soon for considered everyday pieces.</span>
-                </div>
-              )}
-            </section>
-
-            <section className="story-band" id="story">
-              <p className="eyebrow">LESS, BUT BETTER</p>
-              <p className="story-statement">We believe the things you live with should make you feel <em>something.</em></p>
-              <span>FORM & FIELD — OBJECTS FOR LIVING</span>
-            </section>
-          </>
-        ) : (
-          <section className="bag-page section-wrap">
-            <p className="eyebrow">YOUR EDIT</p>
-            <div className="section-heading"><h1>Your bag<span className="period">.</span></h1><button className="text-button" onClick={() => setView("shop")}>Continue shopping ↗</button></div>
-            {error && <div className="inline-alert" role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
-            {!user ? (
-              <div className="empty-bag">
-                <p>Your bag is waiting.</p>
-                <span>Sign in to see the pieces you’ve collected.</span>
-                <button className="button button-dark" onClick={() => { setError(""); setAuthMode("login"); }}>Sign in</button>
-              </div>
-            ) : cart.length ? (
-              <div className="bag-list">
-                {cart.map((item) => item.product && (
-                  <article className="bag-item" key={item._id || item.product._id}>
-                    <img src={item.product.image} alt={item.product.name} />
-                    <div className="bag-item-info">
-                      <h2>{item.product.name}</h2>
-                      <p>{item.product.desc}</p>
-                      <span className="bag-unit-price">{formatPrice(item.product.price)} each</span>
-                    </div>
-                    <div className="bag-item-totals">
-                      <span className="bag-quantity">QTY&nbsp; {item.quantity}</span>
-                      <strong>{formatPrice(item.lineTotal)}</strong>
-                      <button
-                        className="remove-cart-item"
-                        type="button"
-                        onClick={() => removeFromCart(item.product._id)}
-                        disabled={busy}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </article>
-                ))}
-                <div className="bag-total">
-                  <span>Cart total</span>
-                  <strong>{formatPrice(cartTotal)}</strong>
-                </div>
-                <p className="bag-note">Your selected pieces are saved in your bag. Happy living.</p>
-              </div>
-            ) : (
-              <div className="empty-bag"><p>A little room for something good.</p><span>Your bag is currently empty.</span><button className="button button-dark" onClick={() => setView("shop")}>Discover the collection</button></div>
-            )}
-          </section>
-        )}
+    <div className="storefront">
+      <StoreHeader
+        user={user}
+        cartCount={cartCount}
+        search={search}
+        onSearch={setSearch}
+        onAccount={() => setDialog(user ? 'profile' : 'auth')}
+        onCart={() => setCartOpen(true)}
+            onAddProduct={() => { setEditingProduct(null); setDialog('product') }}
+      />
+      <main>
+        <section className="hero" aria-labelledby="hero-title">
+          <div className="hero-copy">
+            <p className="eyebrow"><span /> Objects for considered living</p>
+            <h1 id="hero-title">Keep the things<br />that <em>mean more.</em></h1>
+            <p className="hero-description">A small collection of useful things, made to be kept close and used every day.</p>
+            <a className="hero-link" href="#collection">Explore the collection <span aria-hidden="true">↘</span></a>
+            <div className="hero-note"><span>01</span><span>Thoughtful by nature</span><span className="note-line" /></div>
+          </div>
+          <div className="hero-image" role="img" aria-label="Handcrafted home objects arranged on a warm studio shelf">
+            <span className="image-caption">Everyday, made exceptional.</span>
+          </div>
+          <div className="hero-index">FIELD NOTES <span>—</span> 2026</div>
+        </section>
+        <section className="point-of-view" id="story" aria-labelledby="story-title">
+          <p className="eyebrow">A quieter kind of good</p>
+          <h2 id="story-title">Buy fewer things.<br /><em>Love them longer.</em></h2>
+          <p>We look for the pieces that earn their place: considered in form, made for everyday life, and better with time.</p>
+        </section>
+        <section className="collection" id="collection" aria-labelledby="collection-title">
+          <div className="collection-heading">
+            <div>
+              <p className="eyebrow">The edit / 01</p>
+              <h2 id="collection-title">Objects to live with</h2>
+            </div>
+            <p className="collection-count">{products.length.toString().padStart(2, '0')} pieces</p>
+          </div>
+          {error && <div className="notice" role="status">{error}</div>}
+          <ProductGrid
+            products={visibleProducts}
+            loading={loadingProducts}
+            onAdd={handleAddToCart}
+            onRetry={loadProducts}
+            user={user}
+            onEdit={(product) => { setDialog('edit-product'); setEditingProduct(product) }}
+            onDelete={handleDeleteProduct}
+            deletingProductId={deletingProductId}
+          />
+        </section>
       </main>
-
-      <footer className="site-footer">
-        <a className="wordmark footer-mark" href="#home" onClick={() => setView("shop")}>FORM<span>&</span>FIELD<small>OBJECTS FOR LIVING</small></a>
-        <p>Made for the everyday, and everything in it.</p>
-        <span>© FORM & FIELD 2025</span>
+      <footer className="footer">
+        <a className="wordmark" href="#top">FORM<span>+</span>FIELD</a>
+        <span>Useful things, chosen well.</span>
+        <span>© 2026 Form + Field</span>
       </footer>
-
-      {notice && <div className="toast" role="status">{notice}</div>}
-
-      {authMode && (
-        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) { setAuthMode(""); setError(""); } }}>
-          <section className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-            <button className="modal-close" aria-label="Close" onClick={() => { setAuthMode(""); setError(""); }}>×</button>
-            <p className="eyebrow">{authMode === "register" ? "A GOOD PLACE TO START" : "WELCOME BACK"}</p>
-            <h2 id="auth-title">{authMode === "register" ? "Join the everyday." : "Come on in."}</h2>
-            <p className="auth-intro">{authMode === "register" ? "Create an account to keep your favorite finds close." : "Sign in to pick up where you left off."}</p>
-            <form onSubmit={submitAuth} className="form-stack">
-              {authMode === "register" ? (
-                <>
-                  <label>Your name<input name="username" autoComplete="username" required minLength="2" /></label>
-                  <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
-                </>
-              ) : (
-                <label>Username or email<input name="identifier" autoComplete="username" required /></label>
-              )}
-              <label>Password<input name="password" type="password" autoComplete={authMode === "register" ? "new-password" : "current-password"} required minLength={authMode === "register" ? "6" : undefined} /></label>
-              {error && <p className="form-error" role="alert">{error}</p>}
-              <button className="button button-dark form-submit" type="submit" disabled={busy}>{busy ? "One moment…" : authMode === "register" ? "Create account" : "Sign in"} <span aria-hidden="true">↗</span></button>
-            </form>
-            <p className="auth-switch">{authMode === "register" ? "Already have an account?" : "New around here?"} <button onClick={() => { setError(""); setAuthMode(authMode === "register" ? "login" : "register"); }}>{authMode === "register" ? "Sign in" : "Create an account"}</button></p>
-          </section>
-        </div>
-      )}
-
-      {(productFormOpen || editingProduct) && user?.role === "admin" && (
-        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductFormOpen(false); setEditingProduct(null); setError(""); } }}>
-          <section className="auth-modal product-modal" role="dialog" aria-modal="true" aria-labelledby="product-title">
-            <button className="modal-close" aria-label="Close" onClick={() => { setProductFormOpen(false); setEditingProduct(null); setError(""); }}>×</button>
-            <p className="eyebrow">{editingProduct ? "REFINE THE DETAILS" : "THE NEXT GOOD THING"}</p>
-            <h2 id="product-title">{editingProduct ? "Edit this piece." : "Add a piece."}</h2>
-            <p className="auth-intro">{editingProduct ? "Update its details or choose a replacement image." : "Share a new find with the collection."}</p>
-            <form className="form-stack" onSubmit={createProduct}>
-              <label>Product name<input name="name" defaultValue={editingProduct?.name || ""} required /></label>
-              <label>Description<textarea name="desc" rows="3" defaultValue={editingProduct?.desc || ""} required /></label>
-              <label>Price (PKR)<input name="price" type="number" min="0" step="0.01" placeholder="0.00" defaultValue={editingProduct?.price ?? ""} required /></label>
-              <label>Product image<input name="image" type="file" accept="image/*" required={!editingProduct} /></label>
-              {error && <p className="form-error" role="alert">{error}</p>}
-              <button className="button button-dark form-submit" type="submit" disabled={busy}>{busy ? "Saving…" : editingProduct ? "Save changes" : "Add to collection"} <span aria-hidden="true">↗</span></button>
-            </form>
-          </section>
-        </div>
+      {cartOpen && <CartDrawer cart={cart} onClose={() => setCartOpen(false)} onRemove={handleRemoveFromCart} />}
+      {dialog && (
+        <StoreDialogs
+          type={dialog}
+          onClose={() => setDialog(null)}
+          onAuth={handleAuth}
+          onSaveProduct={handleSaveProduct}
+          onSignOut={handleSignOut}
+          user={user}
+          product={editingProduct}
+        />
       )}
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
