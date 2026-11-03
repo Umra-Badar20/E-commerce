@@ -21,15 +21,7 @@ const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
     .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
-app.use(cors({
-    origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            return callback(null, true);
-        }
-        return callback(new Error("Origin is not allowed by CORS"));
-    },
-    credentials: true,
-}));
+app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
