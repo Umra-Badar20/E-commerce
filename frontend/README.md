@@ -29,14 +29,14 @@ can use its URL in the frontend project.
    Directory** to `frontend`.
 2. Use the Vite defaults: build command `npm run build`, output directory
    `dist`, and install command `npm install`.
-3. The committed `frontend/.env.production` configures
-   `VITE_API_BASE_URL` as `https://e-commerce-ppfl.vercel.app`.
-4. Deploy the frontend to `https://e-commerce-livid-iota-45.vercel.app`.
+3. `frontend/vercel.json` proxies `/api/*` requests to the stable backend
+   domain. Production frontend requests stay same-origin, avoiding browser CORS.
+4. Deploy the frontend to `https://e-commerce-livid-iota-45.vercel.app`. No
+   `VITE_API_BASE_URL` variable is needed for production.
 
-Vite embeds `VITE_*` variables during the build, so changing the backend URL
-requires a new frontend deployment. Configure `FRONTEND_URL` in the backend
-Vercel project's environment variables to the exact frontend origin above.
-The backend accepts comma-separated origins if you need more than one.
+If the backend domain changes, update the rewrite destination and redeploy the
+frontend. The backend still accepts direct cross-origin requests for other
+clients, as configured in its CORS middleware.
 
 ### MongoDB and browser settings
 
@@ -44,12 +44,8 @@ The backend accepts comma-separated origins if you need more than one.
   Vercel static egress or another restricted egress setup where available;
   avoid opening database access to every IP unless you understand the risk.
   Use a least-privilege database user.
-- Since separate Vercel domains are cross-site, the backend sets its auth
-  cookie with `SameSite=None; Secure` in production and allows credentialed
-  CORS requests only from `FRONTEND_URL`. For the most reliable browser cookie
-  behavior, attach frontend and backend custom domains under the same site
-  (for example, `shop.example.com` and `api.example.com`), then update both
-  environment variables and redeploy.
+- Frontend API calls are proxied through the frontend Vercel domain, so auth
+  cookies are first-party in the browser.
 - Rotate any credentials that were previously committed in the repository.
   Set the replacements only in Vercel environment variables; never commit
   `.env` files.
