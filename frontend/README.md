@@ -20,7 +20,8 @@ can use its URL in the frontend project.
    | `IMAGEKIT_PRIVATE_KEY` | ImageKit private key |
    | `FRONTEND_URL` | `https://e-commerce-livid-iota-45.vercel.app` |
 
-4. Deploy the backend to `https://e-commerce-ppfl-cyi2f4djd-umras-projects.vercel.app`.
+4. Deploy the backend and use its stable project domain,
+   `https://e-commerce-ppfl.vercel.app`, for frontend requests.
 
 ### Frontend project
 
@@ -29,8 +30,7 @@ can use its URL in the frontend project.
 2. Use the Vite defaults: build command `npm run build`, output directory
    `dist`, and install command `npm install`.
 3. The committed `frontend/.env.production` configures
-   `VITE_API_BASE_URL` as
-   `https://e-commerce-ppfl-cyi2f4djd-umras-projects.vercel.app`.
+   `VITE_API_BASE_URL` as `https://e-commerce-ppfl.vercel.app`.
 4. Deploy the frontend to `https://e-commerce-livid-iota-45.vercel.app`.
 
 Vite embeds `VITE_*` variables during the build, so changing the backend URL
