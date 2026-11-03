@@ -18,9 +18,9 @@ can use its URL in the frontend project.
    | `MONGODB_URI` | MongoDB Atlas connection string |
    | `JWT_SECRET` | A new, long random secret |
    | `IMAGEKIT_PRIVATE_KEY` | ImageKit private key |
-   | `FRONTEND_URL` | Exact frontend origin, such as `https://your-store.vercel.app` |
+   | `FRONTEND_URL` | `https://e-commerce-livid-iota-45.vercel.app` |
 
-4. Deploy and copy the backend deployment URL.
+4. Deploy the backend to `https://e-commerce-ppfl-cyi2f4djd-umras-projects.vercel.app`.
 
 ### Frontend project
 
@@ -28,14 +28,15 @@ can use its URL in the frontend project.
    Directory** to `frontend`.
 2. Use the Vite defaults: build command `npm run build`, output directory
    `dist`, and install command `npm install`.
-3. Add `VITE_API_BASE_URL` with the backend URL from the previous step, without
-   a trailing slash. For example: `https://your-api.vercel.app`.
-4. Deploy or redeploy the frontend after setting this variable.
+3. The committed `frontend/.env.production` configures
+   `VITE_API_BASE_URL` as
+   `https://e-commerce-ppfl-cyi2f4djd-umras-projects.vercel.app`.
+4. Deploy the frontend to `https://e-commerce-livid-iota-45.vercel.app`.
 
 Vite embeds `VITE_*` variables during the build, so changing the backend URL
-requires a new frontend deployment. Set `FRONTEND_URL` to the exact frontend
-origin for each environment; the backend accepts comma-separated origins if
-you need more than one.
+requires a new frontend deployment. Configure `FRONTEND_URL` in the backend
+Vercel project's environment variables to the exact frontend origin above.
+The backend accepts comma-separated origins if you need more than one.
 
 ### MongoDB and browser settings
 
