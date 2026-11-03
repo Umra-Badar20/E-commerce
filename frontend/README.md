@@ -36,7 +36,9 @@ can use its URL in the frontend project.
 Vite embeds `VITE_*` variables during the build, so changing the backend URL
 requires a new frontend deployment. Configure `FRONTEND_URL` in the backend
 Vercel project's environment variables to the exact frontend origin above.
-The backend accepts comma-separated origins if you need more than one.
+The backend accepts comma-separated origins if you need more than one. It also
+allows HTTPS Vercel origins whose project hostname starts with `e-commerce-`,
+so preview deployments of this storefront can call the API.
 
 ### MongoDB and browser settings
 

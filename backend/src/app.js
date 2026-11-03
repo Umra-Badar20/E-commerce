@@ -24,9 +24,24 @@ const allowedOrigins = [
     .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
+function isAllowedOrigin(origin) {
+    if (!origin || allowedOrigins.includes(origin)) {
+        return true;
+    }
+
+    try {
+        const url = new URL(origin);
+        return url.protocol === "https:"
+            && url.origin === origin
+            && /^e-commerce-[a-z0-9-]+\.vercel\.app$/i.test(url.hostname);
+    } catch {
+        return false;
+    }
+}
+
 app.use(cors({
     origin(origin, callback) {
-        callback(null, !origin || allowedOrigins.includes(origin));
+        callback(null, isAllowedOrigin(origin));
     },
     credentials: true,
 }));
